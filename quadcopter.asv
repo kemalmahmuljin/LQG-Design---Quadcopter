@@ -199,7 +199,6 @@ fprintf("=======================================================================
 %       Here we continiue using :
 %           Trapezoidal rule
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Deriving transformation by hand to keep dimensions smaller
 Ad = (eye(n_states) - A*Ts/2)\(eye(n_states) + A*Ts/2);
 Bd = (eye(n_states) - A*Ts/2)\B*Ts;
 Cd = C/(eye(n_states) - A*Ts/2);
@@ -219,31 +218,20 @@ fprintf('\nReference-Input  full state feedback. The matrices Nx and Nu are:\n')
 Nx = big_N(1:n_states,:)
 Nu = big_N(n_states+1:end,:)
 
-%% Comments
-
+% Picking random diagonal value for Q and R
 % I assume we're supposed to guess these values initially
 % as they represent the relative importance of the speed of the controller
 % vs the cost of the input
-% So once this is implemented correctly we shoudl do trial and error till
-% we're satisfied.
-
-% Picking random diagonal value for Q and R
+% So once this is implemented correctly we shoudl 
 Q = 9*eye(n_states);
 R = eye(n_inputs);
 
 % Performing matlab lqr solver
 [K,S,CLP] = dlqr(Ad,Bd,Q,R);
 
-
-%% Comments
+% Comments
 
 % feedback gain seems to be calculated correctly, however simulinkg
 % implementation doesn't work.
 
-%{
-Also, i noticed that as references we only get the coordinates
-However they only represent 3 of the 6 output values. 
-That is why i've appended 3 zeros to the reference input.
-I'm not sure if were supposed to do this or recalculate the gain, 
-Nu and NX such that only 3 inputs are important
-%}
+% 
