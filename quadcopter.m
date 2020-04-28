@@ -70,24 +70,28 @@ B(12,4) = -b * c_m / I_zz;
 % output matrix
 C = zeros(n_outputs,n_states);
 
-C(1,4) = 1;
-C(2,5) = 1;
-C(3,6) = 1;
-C(4,10) = 1;
-C(5,11) = 1;
-C(6,12) = 1;
+C(1,1) = 1;
+C(2,2) = 1;
+C(3,3) = 1;
+C(4,7) = 1;
+C(5,8) = 1;
+C(6,9) = 1;
 
 % NO feedthrough matrix
 D = zeros(6,4);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 2. Discretization
+%       Here we discretize using :
+%           Trapezoidal rule
+%           Zero Order Hold
+%           Forward Euler rule
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Creating system
 sys= ss(A,B,C,D);
 G = tf(sys);
-%Sampling time
+% Sampling time
 Ts = 0.05;
 
 %% Trapezoidal Rule : bilinear
@@ -95,6 +99,7 @@ G_DT_bilinear = c2d(G,Ts,'tustin');
 
 %% Zero order Hold
 G_DT_zoh = c2d(G,Ts,'zoh');
+
 %% Forward Euler
 A_FE = eye( size(A,1) ) + A * Ts;
 B_FE = B * Ts;
@@ -103,51 +108,89 @@ D_FE = D;
 
 G_DT_FE = tf( ss(A_FE,B_FE,C_FE,D_FE,Ts) );
 
-% step and frequency responses
+%% step and frequency responses for the different discretizations
 %{
 %% Step response
 T_sim = 5;
 t_sim_steps = [0:Ts:T_sim];
 step(G,G_DT_bilinear,G_DT_zoh,G_DT_FE,t_sim_steps)
-%step(G,G_DT_bilinear,G_DT_zoh,Gpz_no_gain_correction,t)
 legend show
 
 %% Frequency response
 figure;
 H=bodeplot(G,G_DT_bilinear,G_DT_zoh, G_DT_FE);
-%H=bodeplot(G,G_DT_bilinear,G_DT_zoh,Gpz_no_gain_correction);
 legend show
 grid
 
 pp = getoptions(H);
 pp.YLim{1}=[-25 25];
 setoptions(H,pp)
+
+%% Or only visualize one transfer function:
+% For 4 input to 1st output
+
+%% Step response
+T_sim = 5;
+t_sim_steps = [0:Ts:T_sim];
+step(G(4,1),G_DT_bilinear(4,1),G_DT_zoh(4,1),G_DT_FE(4,1),t_sim_steps)
+legend('G41', 'G_DT_bilinear41', 'G_DT_zoh41', 'G_DT_FE41' );
+
+%% Frequency response
+figure;
+H=bodeplot(G(4,1),G_DT_bilinear(4,1),G_DT_zoh(4,1), G_DT_FE(4,1));
+legend('G41', 'G_DT_bilinear41', 'G_DT_zoh41', 'G_DT_FE41' );
+grid
 %}
 
-%% Performing checks on FE discretisation
+%% Performing checks on discretisation
 fprintf("========================================================================");
 fprintf(['\n\nThe original continiuous time system itself is unstable (pole = 0). \n', ...
-     'The poles of the original matrix are :\n']);
+     'The poles of the continiuous system are :\n']);
 disp(eig(A))
-fprintf('\n\nThe poles of the discrete system using FE transformation are: \n');
-disp(eig(A_FE))
-fprintf('\nNotice the same unstable poles.\n');
-fprintf("=======================================================================");
+fprintf('\n\nThe poles of the discretized system using any transformation are: \n');
+p_FE = eig(A_FE)
+p_T = pole(G_DT_bilinear)
+p_ZOH = pole(G_DT_zoh)
+
+fprintf('\nNotice the same number of unstable poles.\n');
 fprintf('\nNext we check if the discretized system is controllable and observable.');
 fprintf(['\n\nWe can see that the rank of the controllability matrix is the same', ...
     'as the order of the system: \n']);
 fprintf('\nOrder of the system is : %i \n', n_states);
 fprintf('Rank of controllability matrix is : %i \n', rank(ctrb(A_FE, B_FE)));
 fprintf('Rank of observability matrix is : %i \n', rank(obsv(A_FE, C_FE)));
-fprintf(['\nThe system is thus controllable and not observable', ...
-    'the lack of observability is because we do not measure the angular and lateral velocity vectors.']);
-% This doesn't fully explain it ( rank 8 out of 12, but we drop 6 inputs)
+fprintf(['\nThe system is thus controllable and observable.']);
 fprintf('\n(A_FE, B_FE) is stabilizable, because all unstable nodes are controllable.\n');
-% checking which modes are NOT observable using PBH Test
-[V_FE,d_FE] = eig(A_FE);
-result_m_FE = C_FE*V_FE;
-fprintf('\nThe first 3 modes associated with the location are NOT observable and the yaw is also not observable.\n'); 
-fprintf('\nThe system is thus NOT detectable!\n');
-fprintf('\nAs the system is not detectable it is also NOT minimal!\n');
+fprintf('Furthermore, (A_FE, C_FE) is detectable, because all unstable nodes are observable.\n');
+% Confirming that all nodes are controllable and observable using PBH test
+[V_FE,~] = eig(A_FE);
+result_C_FE = C_FE*V_FE;
+[V_FET,~] = eig(A_FE');
+result_B_FE = B_FE'*V_FET;
 % Checking transmission zero's of discretized model
-tzero(A_FE, B_FE, C_FE, D_FE)
+% tzero calculates the solution for the matrix-vector product
+% at the bottom of page 82 in the course. This does not guarantee a rank
+% decrease of G(e) that's why we need to check it for each solution
+fprintf('\n\nHere we show the solutions to tzero for the different systems\n');
+Continuous_T_zero = tzero(sys)
+FE_T_zero = tzero(ss(G_DT_FE))
+bilinear_T_zero = tzero(ss(G_DT_bilinear))
+zoh_T_zero = tzero(ss(G_DT_zoh))
+fprintf(['\n\nTrapezoidal rule and ZOH seem to have solutions, however we need to check if the are actually', ...
+    'transmission zeros: \n']);
+M_T = [bilinear_T_zero(2)*eye(length(A_FE))-A_FE -B_FE; C_FE D_FE];
+z_T = size(null(M_T))
+M_ZOH1 = [zoh_T_zero(1)*eye(length(ss(G_DT_zoh).A))-ss(G_DT_zoh).A -ss(G_DT_zoh).B; ss(G_DT_zoh).C ss(G_DT_zoh).D];
+z_ZOH1 = size(null(M_ZOH1))
+M_ZOH2 = [zoh_T_zero(2)*eye(length(ss(G_DT_zoh).A))-ss(G_DT_zoh).A -ss(G_DT_zoh).B; ss(G_DT_zoh).C ss(G_DT_zoh).D];
+z_ZOH2 = size(null(M_ZOH2))
+fprintf('\n\nWe can thus confirm that the ZOH discretization has 2 transmission zeros.\n');
+
+% Performing Kalman Decomposition
+[Abarc,Bbarc,Cbarc,~,kc] = ctrbf(A,B,C); 
+[Abaro,Bbaro,Cbaro,~,ko] = obsvf(A,B,C);
+fprintf(['\n\nLastly as the system is controllable and observable we know that the system is minimal' , ...
+    'This is also confirmed after performing the Kalman decomposition.\n']);
+fprintf("=======================================================================\n");
+
+
