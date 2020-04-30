@@ -108,6 +108,15 @@ D_FE = D;
 
 G_DT_FE = tf( ss(A_FE,B_FE,C_FE,D_FE,Ts) );
 
+
+%%  manual trapezoidal
+% Deriving transformation by hand to keep dimensions smaller
+Ad = (eye(n_states) - A*Ts/2)\(eye(n_states) + A*Ts/2);
+Bd = (eye(n_states) - A*Ts/2)\B*Ts;
+Cd = C/(eye(n_states) - A*Ts/2);
+Dd = D + C/(eye(n_states) - A*Ts/2) * B*Ts/2;
+sysD = ss(Ad, Bd, Cd, Dd, Ts);
+
 %% step and frequency responses for the different discretizations
 %{
 %% Step response
@@ -148,7 +157,7 @@ fprintf(['\n\nThe original continiuous time system itself is unstable (pole = 0)
      'The poles of the continiuous system are :\n']);
 disp(eig(A))
 fprintf('\n\nThe poles of the discretized system using any transformation are: \n');
-p_FE = eig(A_FE)
+p_D = eig(sysD.A)
 p_T = pole(G_DT_bilinear)
 p_ZOH = pole(G_DT_zoh)
 
@@ -157,23 +166,23 @@ fprintf('\nNext we check if the discretized system is controllable and observabl
 fprintf(['\n\nWe can see that the rank of the controllability matrix is the same', ...
     'as the order of the system: \n']);
 fprintf('\nOrder of the system is : %i \n', n_states);
-fprintf('Rank of controllability matrix is : %i \n', rank(ctrb(A_FE, B_FE)));
-fprintf('Rank of observability matrix is : %i \n', rank(obsv(A_FE, C_FE)));
+fprintf('Rank of controllability matrix is : %i \n', rank(ctrb(sysD.A, sysD.B)));
+fprintf('Rank of observability matrix is : %i \n', rank(obsv(sysD.A, sysD.C)));
 fprintf(['\nThe system is thus controllable and observable.']);
-fprintf('\n(A_FE, B_FE) is stabilizable, because all unstable nodes are controllable.\n');
-fprintf('Furthermore, (A_FE, C_FE) is detectable, because all unstable nodes are observable.\n');
+fprintf('\n(Ad, Bd) is stabilizable, because all unstable nodes are controllable.\n');
+fprintf('Furthermore, (Ad, Cd) is detectable, because all unstable nodes are observable.\n');
 % Confirming that all nodes are controllable and observable using PBH test
-[V_FE,~] = eig(A_FE);
-result_C_FE = C_FE*V_FE;
-[V_FET,~] = eig(A_FE');
-result_B_FE = B_FE'*V_FET;
+[V_FE,~] = eig(sysD.A);
+result_C_FE = sysD.C*V_FE;
+[V_FET,~] = eig(sysD.A');
+result_B_FE = sysD.B'*V_FET;
 % Checking transmission zero's of discretized model
 % tzero calculates the solution for the matrix-vector product
 % at the bottom of page 82 in the course. This does not guarantee a rank
 % decrease of G(e) that's why we need to check it for each solution
 fprintf('\n\nHere we show the solutions to tzero for the different systems\n');
 Continuous_T_zero = tzero(sys)
-FE_T_zero = tzero(ss(G_DT_FE))
+FE_T_zero = tzero(sysD)
 bilinear_T_zero = tzero(ss(G_DT_bilinear))
 zoh_T_zero = tzero(ss(G_DT_zoh))
 fprintf(['\n\nTrapezoidal rule and ZOH seem to have solutions, however we need to check if the are actually', ...
@@ -199,25 +208,61 @@ fprintf("=======================================================================
 %       Here we continiue using :
 %           Trapezoidal rule
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Deriving transformation by hand to keep dimensions smaller
-Ad = (eye(n_states) - A*Ts/2)\(eye(n_states) + A*Ts/2);
-Bd = (eye(n_states) - A*Ts/2)\B*Ts;
-Cd = C/(eye(n_states) - A*Ts/2);
-Dd = D + C/(eye(n_states) - A*Ts/2) * B*Ts/2;
-sysD = ss(Ad, Bd, Cd, Dd, Ts);
+%% Calculating steady state value of output and input in discrete case (no feedback)
+x_ss = (eye(n_states) - sysD.A)\sysD.B*v_ss;
 
-big_A = [sysD.A - eye(n_states) sysD.B
-         sysD.C sysD.D];
+%--------------------
+%% Picking random diagonal value for Q and R
+Q  = [40*eye(3), zeros(3,9); ...            % coordinates
+       zeros(3,3), 5*eye(3), zeros(3,6); ...  % velocities
+       zeros(3,6), 5*eye(3), zeros(3,3); ...  % angles
+       zeros(3,9), 5*eye(3)] ;                % angular velocity
+R = 1*eye(n_inputs);
 
-big_Y =[ zeros(n_states,n_outputs)
-         eye(n_outputs,n_outputs) ];
+Q = 15*Q;
+R = 1*R;
+%% Calculating feedback gain for continuous and discrete cases
+% lqr solver for feedback in nonlinear system
+[K_c,S_c, ~] = lqr(sys.A, sys.B, Q,R);
 
+% Performing matlab dlqr solver
+[K_d,S,CLP] = dlqr(sysD.A,sysD.B,Q,R);
+
+%% calculating Nu & Nx in continuous and discrete case
+% (n_states + n_outputs) * ( n_states + n_inputs)
+big_A = [sys.A , sys.B;
+         sys.C(1:3,:), sys.D(1:3,:)];
+big_Y =[zeros(n_states,n_outputs - 3);
+         eye(n_outputs - 3) ];
 big_N = big_A\big_Y;
 
-fprintf('\nReference-Input  full state feedback. The matrices Nx and Nu are:\n');
+fprintf('\nReference-Input  full state feedback continuous case. The matrices Nx and Nu are:\n');
+Nx_c = big_N(1:n_states,:)
+Nu_c = big_N(n_states+1:end,:)
 
-Nx = big_N(1:n_states,:)
-Nu = big_N(n_states+1:end,:)
+%----------------------------------------------
+% (n_states + n_outputs) * ( n_states + n_inputs)
+big_A = [sysD.A - eye(n_states), sysD.B;
+         sysD.C(1:3,:), sysD.D(1:3,:)];
+big_Y =[ zeros(n_states,n_outputs - 3);
+         eye(n_outputs - 3) ];
+big_N = big_A\big_Y;
+
+
+fprintf('\nReference-Input  full state feedback discrete case. The matrices Nx and Nu are:\n');
+Nx_d = big_N(1:n_states,:)
+Nu_d = big_N(n_states+1:end,:)
+
+%% poles open loop vs closed loop
+Open = eig(sysD.A)
+Closed_discrete = eig(sysD.A - sysD.B*K_d)
+Closed_continuous = eig(sys.A - sys.B*K_c)
+
+
+
+%% Saving plot for LaTeX
+%print -depsc Bifurcation1.eps
+
 
 %% Comments
 
@@ -227,12 +272,7 @@ Nu = big_N(n_states+1:end,:)
 % So once this is implemented correctly we shoudl do trial and error till
 % we're satisfied.
 
-% Picking random diagonal value for Q and R
-Q = 9*eye(n_states);
-R = eye(n_inputs);
 
-% Performing matlab lqr solver
-[K,S,CLP] = dlqr(Ad,Bd,Q,R);
 
 
 %% Comments
@@ -247,3 +287,41 @@ That is why i've appended 3 zeros to the reference input.
 I'm not sure if were supposed to do this or recalculate the gain, 
 Nu and NX such that only 3 inputs are important
 %}
+
+
+%% steady state output guess
+t1 = eye(n_states) - sysD.A;
+t1 = t1(1:9,:);
+t2 = sysD.B*(ones(4,1)*v_ss);
+t2 = t2(1:9,:);
+xrr = t1\t2;
+yres = sysD.C*xrr + sysD.D*(ones(4,1)*v_ss);
+
+%% guess two
+sym z
+G =  tf(sysD)
+tfmat=G(2,3)
+% tf (1-1/z) --> evalueren in z = 1 --> maal v_ss moet steady state error
+% yss geven
+transfermat(3)
+
+
+%% discretized system seems to have 12 poles and 8 transmission zeros
+
+res = tzero(sysD);
+tz = res(3)
+M_T = [tz*eye(length(sysD.A))-sysD.A, -sysD.B; sysD.C, sysD.D];
+rank(M_T)
+rank([1.5*eye(length(sysD.A))-sysD.A, -sysD.B; sysD.C, sysD.D])
+sizz = size(null(M_T))
+F = null(M_T);
+F = F(:,2);
+
+Rx = F(1:n_states);
+Ru = F(n_states + 1: end)
+
+% if they are transmission zeros the following expressions should be close
+% to 0
+eq1 = sysD.A*Rx + sysD.B*Ru + tz*eye(n_states)*Rx
+eq2 = sysD.C*Rx + sysD.D*Ru
+
