@@ -158,8 +158,8 @@ fprintf(['\n\nThe original continiuous time system itself is unstable (pole = 0)
 disp(eig(A))
 fprintf('\n\nThe poles of the discretized system using any transformation are: \n');
 p_D = eig(sysD.A)
-p_T = pole(G_DT_bilinear)
-p_ZOH = pole(G_DT_zoh)
+% p_T = pole(G_DT_bilinear)
+% p_ZOH = pole(G_DT_zoh)
 
 fprintf('\nNotice the same number of unstable poles.\n');
 fprintf('\nNext we check if the discretized system is controllable and observable.');
@@ -182,20 +182,26 @@ result_B_FE = sysD.B'*V_FET;
 % decrease of G(e) that's why we need to check it for each solution
 fprintf('\n\nHere we show the solutions to tzero for the different systems\n');
 Continuous_T_zero = tzero(sys)
-FE_T_zero = tzero(sysD)
-bilinear_T_zero = tzero(ss(G_DT_bilinear))
-zoh_T_zero = tzero(ss(G_DT_zoh))
-fprintf(['\n\nTrapezoidal rule and ZOH seem to have solutions, however we need to check if the are actually', ...
+D_T_zero = tzero(sysD)
+% bilinear_T_zero = tzero(ss(G_DT_bilinear))
+% zoh_T_zero = tzero(ss(G_DT_zoh))
+fprintf(['\n\nTrapezoidal rule and seems to have solutions, however we need to check if the are actually', ...
     'transmission zeros: \n']);
-M_T = [bilinear_T_zero(2)*eye(length(A_FE))-A_FE -B_FE; C_FE D_FE];
-z_T = size(null(M_T))
-M_ZOH1 = [zoh_T_zero(1)*eye(length(ss(G_DT_zoh).A))-ss(G_DT_zoh).A -ss(G_DT_zoh).B; ss(G_DT_zoh).C ss(G_DT_zoh).D];
-z_ZOH1 = size(null(M_ZOH1))
-M_ZOH2 = [zoh_T_zero(2)*eye(length(ss(G_DT_zoh).A))-ss(G_DT_zoh).A -ss(G_DT_zoh).B; ss(G_DT_zoh).C ss(G_DT_zoh).D];
-z_ZOH2 = size(null(M_ZOH2))
-fprintf('\n\nWe can thus confirm that the ZOH discretization has 2 transmission zeros.\n');
+M_D = [D_T_zero(1)*eye(length(sysD.A))-sysD.A -sysD.B; sysD.C sysD.D];
+z_D = size(null(M_D))
+rank([5*eye(length(sysD.A))-sysD.A -sysD.B; sysD.C sysD.D])
+% M_T = [bilinear_T_zero(2)*eye(length(A_FE))-A_FE -B_FE; C_FE D_FE];
+% z_T = size(null(M_T))
+% M_ZOH1 = [zoh_T_zero(1)*eye(length(ss(G_DT_zoh).A))-ss(G_DT_zoh).A -ss(G_DT_zoh).B; ss(G_DT_zoh).C ss(G_DT_zoh).D];
+% z_ZOH1 = size(null(M_ZOH1))
+% M_ZOH2 = [zoh_T_zero(2)*eye(length(ss(G_DT_zoh).A))-ss(G_DT_zoh).A -ss(G_DT_zoh).B; ss(G_DT_zoh).C ss(G_DT_zoh).D];
+% z_ZOH2 = size(null(M_ZOH2))
+fprintf('\n\nWe can thus confirm that the Trapezoidal discretization has 4 transmission zeros.\n');
 
 % Performing Kalman Decomposition
+[ADc,BDc,CDc,~,kDc] = ctrbf(sysD.A,sysD.B,sysD.C); 
+[ADo,BDo,CDo,~,kDo] = obsvf(sysD.A,sysD.B,sysD.C);
+
 [Abarc,Bbarc,Cbarc,~,kc] = ctrbf(A,B,C); 
 [Abaro,Bbaro,Cbaro,~,ko] = obsvf(A,B,C);
 fprintf(['\n\nLastly as the system is controllable and observable we know that the system is minimal' , ...
@@ -213,20 +219,20 @@ x_ss = (eye(n_states) - sysD.A)\sysD.B*v_ss;
 
 %--------------------
 %% Picking random diagonal value for Q and R
-Q  = [40*eye(3), zeros(3,9); ...            % coordinates
-       zeros(3,3), 5*eye(3), zeros(3,6); ...  % velocities
-       zeros(3,6), 5*eye(3), zeros(3,3); ...  % angles
-       zeros(3,9), 5*eye(3)] ;                % angular velocity
+Q  = [4*eye(3), zeros(3,9); ...                % coordinates
+       zeros(3,3), 1*eye(3), zeros(3,6); ...    % velocities
+       zeros(3,6), 1*eye(3), zeros(3,3); ...    % angles
+       zeros(3,9), 1*eye(3)] ;                  % angular velocity
 R = 1*eye(n_inputs);
 
-Q = 15*Q;
-R = 1*R;
+Q = 1*Q;
+R = 100*R;
 %% Calculating feedback gain for continuous and discrete cases
 % lqr solver for feedback in nonlinear system
-[K_c,S_c, ~] = lqr(sys.A, sys.B, Q,R);
+[K_c,~, CLP_c] = lqr(sys.A, sys.B, Q,R);
 
 % Performing matlab dlqr solver
-[K_d,S,CLP] = dlqr(sysD.A,sysD.B,Q,R);
+[K_d,~,CLP_d] = dlqr(sysD.A,sysD.B,Q,R);
 
 %% calculating Nu & Nx in continuous and discrete case
 % (n_states + n_outputs) * ( n_states + n_inputs)
@@ -246,6 +252,19 @@ big_A = [sysD.A - eye(n_states), sysD.B;
          sysD.C(1:3,:), sysD.D(1:3,:)];
 big_Y =[ zeros(n_states,n_outputs - 3);
          eye(n_outputs - 3) ];
+big_N = big_A\big_Y;
+
+
+fprintf('\nReference-Input  full state feedback discrete case. The matrices Nx and Nu are:\n');
+Nx_short = big_N(1:n_states,:)
+Nu_short = big_N(n_states+1:end,:)
+
+
+%% Delete this part later
+big_A = [sysD.A - eye(n_states), sysD.B;
+         sysD.C, sysD.D];
+big_Y =[ zeros(n_states,n_outputs);
+         eye(n_outputs) ];
 big_N = big_A\big_Y;
 
 
@@ -296,15 +315,6 @@ t2 = sysD.B*(ones(4,1)*v_ss);
 t2 = t2(1:9,:);
 xrr = t1\t2;
 yres = sysD.C*xrr + sysD.D*(ones(4,1)*v_ss);
-
-%% guess two
-sym z
-G =  tf(sysD)
-tfmat=G(2,3)
-% tf (1-1/z) --> evalueren in z = 1 --> maal v_ss moet steady state error
-% yss geven
-transfermat(3)
-
 
 %% discretized system seems to have 12 poles and 8 transmission zeros
 
