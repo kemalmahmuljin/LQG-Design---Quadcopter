@@ -316,6 +316,15 @@ t2 = t2(1:9,:);
 xrr = t1\t2;
 yres = sysD.C*xrr + sysD.D*(ones(4,1)*v_ss);
 
+%% guess two
+%sym z
+G =  tf(sysD)
+tfmat=G(,3)
+% tf (1-1/z) --> evalueren in z = 1 --> maal v_ss moet steady state error
+% yss geven
+%transfermat(3)
+
+
 %% discretized system seems to have 12 poles and 8 transmission zeros
 
 res = tzero(sysD);
