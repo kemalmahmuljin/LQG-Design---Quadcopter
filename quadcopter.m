@@ -219,14 +219,18 @@ x_ss = (eye(n_states) - sysD.A)\sysD.B*v_ss;
 
 %--------------------
 %% Picking random diagonal value for Q and R
-Q  = [4*eye(3), zeros(3,9); ...                % coordinates
-       zeros(3,3), 1*eye(3), zeros(3,6); ...    % velocities
+Q  = [1, zeros(1,11); ...                       % x - coordinate
+        0, 1, zeros(1,10); ...                  % y - coordinate
+        0, 0, 100, zeros(1,9); ...               % z - coordinate
+        zeros(1,3), 1, zeros(1,8); ...          % x - velocities
+        zeros(1,4), 1, zeros(1,7); ...          % y - velocities
+        zeros(1,5), 30, zeros(1,6); ...          % z - velocities         
        zeros(3,6), 1*eye(3), zeros(3,3); ...    % angles
        zeros(3,9), 1*eye(3)] ;                  % angular velocity
 R = 1*eye(n_inputs);
 
 Q = 1*Q;
-R = 100*R;
+R = 0.1*R;
 %% Calculating feedback gain for continuous and discrete cases
 % lqr solver for feedback in nonlinear system
 [K_c,~, CLP_c] = lqr(sys.A, sys.B, Q,R);
@@ -234,7 +238,7 @@ R = 100*R;
 % Performing matlab dlqr solver
 [K_d,~,CLP_d] = dlqr(sysD.A,sysD.B,Q,R);
 
-%% calculating Nu & Nx in continuous and discrete case
+%% calculating Nu & Nx in continuous case
 % (n_states + n_outputs) * ( n_states + n_inputs)
 big_A = [sys.A , sys.B;
          sys.C(1:3,:), sys.D(1:3,:)];
@@ -246,19 +250,21 @@ fprintf('\nReference-Input  full state feedback continuous case. The matrices Nx
 Nx_c = big_N(1:n_states,:)
 Nu_c = big_N(n_states+1:end,:)
 
-%----------------------------------------------
-% (n_states + n_outputs) * ( n_states + n_inputs)
-big_A = [sysD.A - eye(n_states), sysD.B;
+
+%% calculating Nu & Nx in discrete case 
+% (n_states + n_references) * ( n_states + n_inputs)
+big_A = [ (sysD.A - eye(n_states)), sysD.B;
          sysD.C(1:3,:), sysD.D(1:3,:)];
-big_Y =[ zeros(n_states,n_outputs - 3);
-         eye(n_outputs - 3) ];
-big_N = big_A\big_Y;
+big_Y =[ zeros(n_states,3);
+         eye(3) ];
+%big_N = big_A\big_Y;
+big_N = pinv(big_A)*big_Y;
 
-
-fprintf('\nReference-Input  full state feedback discrete case. The matrices Nx and Nu are:\n');
-Nx_short = big_N(1:n_states,:)
-Nu_short = big_N(n_states+1:end,:)
-
+%fprintf('\nReference-Input  full state feedback discrete case. The matrices Nx and Nu are:\n');
+Nx_short = big_N(1:n_states,:);
+Nu_short = big_N(n_states+1:end,:);
+%Nu_short2 = big_N2(n_states+1:end,:);
+%Nu_short = Nu_short*1e15;
 
 %% Delete this part later
 big_A = [sysD.A - eye(n_states), sysD.B;
