@@ -379,25 +379,26 @@ rank(ctrb(NA,NB))
 %Picking random diagonal value for Q and R
 Q  = [1, zeros(1,11); ...                       % x - coordinate
         0, 1, zeros(1,10); ...                  % y - coordinate
-        0, 0, 100, zeros(1,9); ...               % z - coordinate
+        0, 0, 1, zeros(1,9); ...               % z - coordinate
         zeros(1,3), 1, zeros(1,8); ...          % x - velocities
         zeros(1,4), 1, zeros(1,7); ...          % y - velocities
-        zeros(1,5), 30, zeros(1,6); ...          % z - velocities         
-       zeros(3,6), 1*eye(3), zeros(3,3); ...    % angles
+        zeros(1,5), 1, zeros(1,6); ...          % z - velocities         
+       zeros(3,6), 10*eye(3), zeros(3,3); ...    % angles
        zeros(3,9), 1*eye(3)] ;                  % angular velocity
 Q = [ eye(3,3) zeros(3,12);
-        zeros(12,3) Q] ;
+        zeros(12,3) Q] 
     
 R = 1*eye(n_inputs);
 
 Q = 1*Q;
 R = 1*R;
+
 %Calculating feedback gain for continuous and discrete cases
 % lqr solver for feedback in nonlinear system
 %[K_c,~, CLP_c] = lqr(sys.A, sys.B, Q,R);
 
 % Performing matlab dlqr solver
-[K_d_Int,~,CLP_d] = dlqr(NA,NB,Q,R);
+[K_d_Int,~,CLP_d_Int] = dlqr(NA,NB,Q,R);
 % LQR and pole placement can only be used if the system is stabilizable
 full_K = K_d_Int;           %place(NA,NB,[cl_poles;-2; -2.1] );
 
