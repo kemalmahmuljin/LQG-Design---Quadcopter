@@ -223,6 +223,8 @@ big_N = pinv(big_A)*big_Y;
 Nx_short = big_N(1:n_states,:);
 Nu_short = big_N(n_states+1:end,:);
 
+
+
 %% poles open loop vs closed loop
 Open = eig(sysD.A)
 Closed_discrete = eig(sysD.A - sysD.B*K_d)
@@ -234,6 +236,10 @@ Closed_discrete = eig(sysD.A - sysD.B*K_d)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 3.a LQR Control: Integral Action
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%**************************
+%  Integral control LQR
+%  
+%**************************
 
 % Constructing the Augmented system
 NA = [ eye(3,3)  sysD.C(1:3,:) ;
@@ -259,6 +265,11 @@ Q  = [  1, zeros(1,11); ...                     % x - coordinate
        zeros(3,9), 1*eye(3)] ;                  % angular velocity
 Q = [ 150*eye(3,3) zeros(3,12);
        zeros(12,3) 1*Q] 
+Q = [ %eye(3,3) zeros(3,12);
+        1,0,0 ,zeros(1,12); ...                       % x - error
+        0, 1,0 ,zeros(1,12); ...                  % y - error
+        0, 0, 1, zeros(1,12); ...               % z - error
+        zeros(12,3) Q] 
     
 R = eye(n_inputs);
 
@@ -303,6 +314,62 @@ PL_list = exp(L_list.*Ts);
 L = place(sysD.A', sysD.C', PL_list)';
 % smaller poles lead to faster reaction time
 % however they also introduce rapid changes in estimation error
+
+
+
+
+
+%%
+%**************************
+%  LQG control
+%  
+%**************************
+%{ 
+Usefull matlab functions
+    destim: [Ae,Be,Ce,De] = destim(A,B,C,D,L)
+    kalman: [KEST,L,P] = kalman(SYS,QN,RN,NN)
+    dlqe: [M,P,Z,E] = dlqe(A,G,C,Q,R)
+%}
+
+
+% Checking whether the system is observable or not
+Ob = obsv(A_d,C_d);
+disp('LQG: Rank of the observability matrix');
+rank(Ob)
+
+var_xyz = 2.5e-5;
+var_angle = 7.57e-5;
+% measurement noise covariance R:
+R = diag([var_xyz, var_xyz, var_xyz, var_angle, var_angle, var_angle]);
+% process noise covariance Q: 
+Q = 0.1*eye(size(B_d,2));
+
+[M,P,Z,E] = dlqe(A_d,B_d,C_d,Q,R);
+L = A_d*M;
+
+
+
+%% Saving plot for LaTeX
+%print -depsc ../plots/name.eps
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
