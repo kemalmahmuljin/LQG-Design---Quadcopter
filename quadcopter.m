@@ -324,13 +324,13 @@ LKalman = sysD.A*M;
 
 %% Controller gain K_pp
 % Determination of the desired closed-loop poles
-dr = 0.9999; %Damping ratio
-ts = 6;      %Settling time
+dr = 0.999; %Damping ratio
+ts = 5;      %Settling time (was 6)
 wn = 4.6/(dr*ts);%Natural frequency
 alpha = -dr*wn;%Real part of the dominant poles
 beta = wn*sqrt(1-dr^2);%Imaginary part of the dominant poles
 
-non_dom = linspace(3*alpha,3.2*alpha, 10);
+non_dom = linspace(5*alpha,5.1*alpha, 10);
 C_list = [alpha + i*beta, alpha - i*beta, non_dom];
 
 % mapping poles to discrete time
@@ -340,7 +340,8 @@ Kpp = place(sysD.A,sysD.B,P_list);
 %% Estimator gain L_pp
 % Becuase the system is observable we can arbitrarely place the poles of
 % the estimator !
-L_list = 15*C_list;
+F =20;
+L_list = [F*alpha + i*beta, F*alpha - i*beta, F*non_dom];
 PL_list = exp(L_list.*Ts);
 
 L = place(sysD.A', sysD.C', PL_list)';

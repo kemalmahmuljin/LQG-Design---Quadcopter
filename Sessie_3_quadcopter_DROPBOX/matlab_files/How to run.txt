@@ -1,3 +1,0 @@
-First run the quadcopter.m file.
-Then simulate the different models with sim_lqr.slx, sim_lqr_integralcontrol.slx and sim_lqg.
-test_model.slx gives the simulink model which tests the discrete time linear model.
