@@ -331,14 +331,15 @@ LKalman = sysD.A*M;
 % Determination of the desired closed-loop poles
 % The maximum admitted error is given by the size of the spheres : 0.08m
 % ! might be better to use overshoot as a criterium
-Mp = 4*8/5;                             % Allowing 6.4% overshoot
-xi = log(Mp)/sqrt(log(Mp)^2 + pi^2);
-ts = 8;                                 % Settling time 
+% Mp = 12*8/5;                             % Allowing 6.4% overshoot
+% xi = log(Mp)/sqrt(log(Mp)^2 + pi^2);
+xi = 0.999;
+ts = 6;                                 % Settling time 
 wn = 4.6/(xi*ts);                       % Natural frequency
-alpha = -dr*wn;                         % Real part of the dominant poles
-beta = wn*sqrt(1-dr^2);                 % Imaginary part of the dominant poles
+alpha = -xi*wn;                         % Real part of the dominant poles
+beta = wn*sqrt(1-xi^2);                 % Imaginary part of the dominant poles
 
-non_dom = linspace(2.35*alpha,2.55*alpha, 10);
+non_dom = linspace(3.4*alpha,3.6*alpha, 10);
 C_list = [alpha + i*beta, alpha - i*beta, non_dom];
 
 % mapping poles to discrete time
@@ -348,8 +349,8 @@ Kpp = place(sysD.A,sysD.B,P_list);
 % Estimator gain L_pp
 % Becuase the system is observable we can arbitrarely place the poles of
 % the estimator !
-F1 = 2;
-F2 = 3;
+F1 = 1.5;
+F2 = 1.5;
 L_list = [F1*alpha + i*beta, F1*alpha - i*beta, F2*non_dom];
 PL_list = exp(L_list.*Ts);
 
