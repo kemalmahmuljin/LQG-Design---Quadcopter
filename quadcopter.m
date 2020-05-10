@@ -195,10 +195,10 @@ fprintf("=======================================================================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 3.a LQR Control: Full state Feedback
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Picking random diagonal value for Q and R
+%% Picking value for Q and R
 Q  = [1, zeros(1,11); ...                       % x - coordinate
         0, 1, zeros(1,10); ...                  % y - coordinate
-        0, 0, 1, zeros(1,9); ...                % z - coordinate
+        0, 0, 500, zeros(1,9); ...              % z - coordinate
         zeros(1,3), 1, zeros(1,8); ...          % x - velocities
         zeros(1,4), 1, zeros(1,7); ...          % y - velocities
         zeros(1,5), 1, zeros(1,6); ...          % z - velocities         
@@ -206,11 +206,14 @@ Q  = [1, zeros(1,11); ...                       % x - coordinate
        zeros(3,9), 1*eye(3)] ;                  % angular velocity
 R = 1*eye(n_inputs);
 
-Q = 1*Q;
-R = 0.1*R;
+% when adding a weight
+QW = eye(n_states);
+QW(3,3) = 700;
+RW = 0.009*eye(n_inputs);
 %% Calculating feedback gain for continuous and discrete cases
 % Performing matlab dlqr solver
 [K_d,~,CLP_d] = dlqr(sysD.A,sysD.B,Q,R);
+[K_dW,~,CLP_dW] = dlqr(sysD.A,sysD.B,QW,RW);
 
 %% Calculating Nu & Nx in discrete case 
 % (n_states + n_references) * ( n_states + n_inputs)
@@ -218,12 +221,10 @@ big_A = [ (sysD.A - eye(n_states)), sysD.B;
          sysD.C(1:3,:), sysD.D(1:3,:)];
 big_Y =[ zeros(n_states,3);
          eye(3) ];
-big_N = pinv(big_A)*big_Y;
+big_N = big_A\big_Y;
 
 Nx_short = big_N(1:n_states,:);
 Nu_short = big_N(n_states+1:end,:);
-
-
 
 %% poles open loop vs closed loop
 Open = eig(sysD.A)
@@ -234,12 +235,8 @@ Closed_discrete = eig(sysD.A - sysD.B*K_d)
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 3.a LQR Control: Integral Action
+% 3.b LQR Control: Integral Action
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%**************************
-%  Integral control LQR
-%  
-%**************************
 
 % Constructing the Augmented system
 NA = [ eye(3,3)  sysD.C(1:3,:) ;
@@ -253,28 +250,25 @@ disp('Rank of the controllability matrix of the augmented system:');
 rank(ctrb(NA,NB))
 
 %%
-% Computing the feedback matrix of the augmented system
-%Picking random diagonal value for Q and R
-Q  = [  1, zeros(1,11); ...                     % x - coordinate
-        0, 1, zeros(1,10); ...                  % y - coordinate
-        0, 0, 1, zeros(1,9); ...                % z - coordinate
+% Computing Q and R for 0kg case
+Q  = [  350, zeros(1,11); ...                     % x - coordinate
+        0, 350, zeros(1,10); ...                  % y - coordinate
+        0, 0, 300, zeros(1,9); ...              % z - coordinate
         zeros(1,3), 1, zeros(1,8); ...          % x - velocities
         zeros(1,4), 1, zeros(1,7); ...          % y - velocities
         zeros(1,5), 1, zeros(1,6); ...          % z - velocities         
-       zeros(3,6), 1*eye(3), zeros(3,3); ...    % angles
-       zeros(3,9), 1*eye(3)] ;                  % angular velocity
-Q = [ 150*eye(3,3) zeros(3,12);
-       zeros(12,3) 1*Q] 
-% Q = [ %eye(3,3) zeros(3,12);
-%         1,0,0 ,zeros(1,12); ...                       % x - error
-%         0, 1,0 ,zeros(1,12); ...                  % y - error
-%         0, 0, 1, zeros(1,12); ...               % z - error
-%         zeros(12,3) Q] 
-    
+        zeros(1,6), 300, zeros(1,5); ...        % phi - angles
+        zeros(1,7), 300, zeros(1,4); ...        % theta - angles
+        zeros(1,8), 1, zeros(1,3); ...          % psi - angles
+        zeros(3,9), 1*eye(3)] ;                  % angular velocity
+Q = [   4*eye(3,3) zeros(3,12);
+        zeros(12,3) 1*Q] 
 R = eye(n_inputs);
-
 Q = 1*Q;
-R = 0.1*R;
+R = 0.04*R;
+
+% Computing Q and R for 0.1kg case
+
 
 % Performing matlab dlqr solver
 [K_d_Int,S,CLP_d_Int] = dlqr(NA,NB,Q,R);
