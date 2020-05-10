@@ -314,18 +314,8 @@ var_angle = 7.57e-5;
 % measurement noise covariance R:
 R = diag([var_xyz, var_xyz, var_xyz, var_angle, var_angle, var_angle]);
 % process noise covariance Q: 
-Q  = [  1, zeros(1,11); ...                     % x - coordinate
-        0, 1, zeros(1,10); ...                  % y - coordinate
-        0, 0, 1, zeros(1,9); ...              % z - coordinate
-        zeros(1,3), 1, zeros(1,8); ...          % x - velocities
-        zeros(1,4), 1, zeros(1,7); ...          % y - velocities
-        zeros(1,5), 1, zeros(1,6); ...          % z - velocities         
-        zeros(1,6), 10000, zeros(1,5); ...        % phi - angles
-        zeros(1,7), 10000, zeros(1,4); ...        % theta - angles
-        zeros(1,8), 1, zeros(1,3); ...          % psi - angles
-        zeros(3,9), 1*eye(3)] ;                  % angular velocity
-Q = 0.1*Q;
- % Calculating gain
+Q = 1*eye(n_states); % video of prof shows that it should be taken to have this form
+% Calculating gain
 [M,P,Z,E] = dlqe(sysD.A,eye(n_states),sysD.C,Q,R);
 LKalman = sysD.A*M;
 
@@ -339,32 +329,33 @@ LKalman = sysD.A*M;
 
 %% Controller gain K_pp
 % Determination of the desired closed-loop poles
-dr = 0.999; %Damping ratio
-ts = 5;      %Settling time (was 6)
-wn = 4.6/(dr*ts);%Natural frequency
-alpha = -dr*wn;%Real part of the dominant poles
-beta = wn*sqrt(1-dr^2);%Imaginary part of the dominant poles
+% The maximum admitted error is given by the size of the spheres : 0.08m
+% ! might be better to use overshoot as a criterium
+Mp = 4*8/5;                             % Allowing 6.4% overshoot
+xi = log(Mp)/sqrt(log(Mp)^2 + pi^2);
+ts = 8;                                 % Settling time 
+wn = 4.6/(xi*ts);                       % Natural frequency
+alpha = -dr*wn;                         % Real part of the dominant poles
+beta = wn*sqrt(1-dr^2);                 % Imaginary part of the dominant poles
 
-non_dom = linspace(5*alpha,5.1*alpha, 10);
+non_dom = linspace(2.35*alpha,2.55*alpha, 10);
 C_list = [alpha + i*beta, alpha - i*beta, non_dom];
 
 % mapping poles to discrete time
 P_list = exp(C_list.*Ts);
 Kpp = place(sysD.A,sysD.B,P_list);
 
-%% Estimator gain L_pp
+% Estimator gain L_pp
 % Becuase the system is observable we can arbitrarely place the poles of
 % the estimator !
-F =20;
-L_list = [F*alpha + i*beta, F*alpha - i*beta, F*non_dom];
+F1 = 2;
+F2 = 3;
+L_list = [F1*alpha + i*beta, F1*alpha - i*beta, F2*non_dom];
 PL_list = exp(L_list.*Ts);
 
 L = place(sysD.A', sysD.C', PL_list)';
 % smaller poles lead to faster reaction time
 % however they also introduce rapid changes in estimation error
-
-
-
 
 %% Saving plot for LaTeX
 %print -depsc ../plots/name.eps
