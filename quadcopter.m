@@ -265,11 +265,11 @@ Q  = [  1, zeros(1,11); ...                     % x - coordinate
        zeros(3,9), 1*eye(3)] ;                  % angular velocity
 Q = [ 150*eye(3,3) zeros(3,12);
        zeros(12,3) 1*Q] 
-Q = [ %eye(3,3) zeros(3,12);
-        1,0,0 ,zeros(1,12); ...                       % x - error
-        0, 1,0 ,zeros(1,12); ...                  % y - error
-        0, 0, 1, zeros(1,12); ...               % z - error
-        zeros(12,3) Q] 
+% Q = [ %eye(3,3) zeros(3,12);
+%         1,0,0 ,zeros(1,12); ...                       % x - error
+%         0, 1,0 ,zeros(1,12); ...                  % y - error
+%         0, 0, 1, zeros(1,12); ...               % z - error
+%         zeros(12,3) Q] 
     
 R = eye(n_inputs);
 
@@ -281,41 +281,6 @@ R = 0.1*R;
 
 Ki = K_d_Int(:,1:3)
 Ks = K_d_Int(:,3+1:end)
-
-
-
-
-%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 5. State feedback with pole-placement
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% Controller gain K_pp
-% Determination of the desired closed-loop poles
-dr = 0.9999; %Damping ratio
-ts = 6;      %Settling time
-wn = 4.6/(dr*ts);%Natural frequency
-alpha = -dr*wn;%Real part of the dominant poles
-beta = wn*sqrt(1-dr^2);%Imaginary part of the dominant poles
-
-non_dom = linspace(3*alpha,3.2*alpha, 10);
-C_list = [alpha + i*beta, alpha - i*beta, non_dom];
-
-% mapping poles to discrete time
-P_list = exp(C_list.*Ts);
-Kpp = place(sysD.A,sysD.B,P_list);
-
-%% Estimator gain L_pp
-% Becuase the system is observable we can arbitrarely place the poles of
-% the estimator !
-L_list = 15*C_list;
-PL_list = exp(L_list.*Ts);
-
-L = place(sysD.A', sysD.C', PL_list)';
-% smaller poles lead to faster reaction time
-% however they also introduce rapid changes in estimation error
-
-
 
 
 
@@ -333,7 +298,7 @@ Usefull matlab functions
 
 
 % Checking whether the system is observable or not
-Ob = obsv(A_d,C_d);
+Ob = obsv(sysD.A,sysD.C);
 disp('LQG: Rank of the observability matrix');
 rank(Ob)
 
@@ -342,10 +307,47 @@ var_angle = 7.57e-5;
 % measurement noise covariance R:
 R = diag([var_xyz, var_xyz, var_xyz, var_angle, var_angle, var_angle]);
 % process noise covariance Q: 
-Q = 0.1*eye(size(B_d,2));
+Q = 0.1*eye(size(sysD.B,2));
 
-[M,P,Z,E] = dlqe(A_d,B_d,C_d,Q,R);
-L = A_d*M;
+[M,P,Z,E] = dlqe(sysD.A,sysD.B,sysD.C,Q,R);
+LKalman = sysD.A*M;
+
+
+
+
+
+
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% 5. State feedback with pole-placement
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Controller gain K_pp
+% Determination of the desired closed-loop poles
+dr = 0.999; %Damping ratio
+ts = 5;      %Settling time (was 6)
+wn = 4.6/(dr*ts);%Natural frequency
+alpha = -dr*wn;%Real part of the dominant poles
+beta = wn*sqrt(1-dr^2);%Imaginary part of the dominant poles
+
+non_dom = linspace(5*alpha,5.1*alpha, 10);
+C_list = [alpha + i*beta, alpha - i*beta, non_dom];
+
+% mapping poles to discrete time
+P_list = exp(C_list.*Ts);
+Kpp = place(sysD.A,sysD.B,P_list);
+
+%% Estimator gain L_pp
+% Becuase the system is observable we can arbitrarely place the poles of
+% the estimator !
+F =20;
+L_list = [F*alpha + i*beta, F*alpha - i*beta, F*non_dom];
+PL_list = exp(L_list.*Ts);
+
+L = place(sysD.A', sysD.C', PL_list)';
+% smaller poles lead to faster reaction time
+% however they also introduce rapid changes in estimation error
+
 
 
 
