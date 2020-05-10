@@ -195,27 +195,11 @@ fprintf("=======================================================================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 3.a LQR Control: Full state Feedback
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Picking value for Q and R
-Q  = [1, zeros(1,11); ...                       % x - coordinate
-        0, 1, zeros(1,10); ...                  % y - coordinate
-        0, 0, 500, zeros(1,9); ...              % z - coordinate
-        zeros(1,3), 1, zeros(1,8); ...          % x - velocities
-        zeros(1,4), 1, zeros(1,7); ...          % y - velocities
-        zeros(1,5), 1, zeros(1,6); ...          % z - velocities         
-       zeros(3,6), 1*eye(3), zeros(3,3); ...    % angles
-       zeros(3,9), 1*eye(3)] ;                  % angular velocity
-R = 1*eye(n_inputs);
 
-% when adding a weight
-QW = eye(n_states);
-QW(3,3) = 700;
-RW = 0.009*eye(n_inputs);
-%% Calculating feedback gain for continuous and discrete cases
-% Performing matlab dlqr solver
-[K_d,~,CLP_d] = dlqr(sysD.A,sysD.B,Q,R);
-[K_dW,~,CLP_dW] = dlqr(sysD.A,sysD.B,QW,RW);
+%---
+% Calculating Nu & Nx in discrete case 
+%---
 
-%% Calculating Nu & Nx in discrete case 
 % (n_states + n_references) * ( n_states + n_inputs)
 big_A = [ (sysD.A - eye(n_states)), sysD.B;
          sysD.C(1:3,:), sysD.D(1:3,:)];
@@ -226,9 +210,40 @@ big_N = big_A\big_Y;
 Nx_short = big_N(1:n_states,:);
 Nu_short = big_N(n_states+1:end,:);
 
-%% poles open loop vs closed loop
-Open = eig(sysD.A)
-Closed_discrete = eig(sysD.A - sysD.B*K_d)
+%---
+% Picking value for Q and R
+%---
+
+Q= [    1, zeros(1,11); ...                     % x - coordinate
+        0, 1, zeros(1,10); ...                  % y - coordinate
+        0, 0, 10, zeros(1,9); ...               % z - coordinate
+        zeros(1,3), 1, zeros(1,8); ...          % x - velocities
+        zeros(1,4), 1, zeros(1,7); ...          % y - velocities
+        zeros(1,5), 1, zeros(1,6); ...          % z - velocities        
+        zeros(1,6), 1, zeros(1,5); ...          % phi - angles
+        zeros(1,7), 1, zeros(1,4); ...          % theta - angles
+        zeros(1,8), 1, zeros(1,3); ...          % psi - angles    
+        zeros(3,9), 1*eye(3)] ;                 % angular velocity
+R = 0.0001*eye(n_inputs);
+
+% when adding a weight
+QW = 0.01*eye(n_states);
+QW(3,3) = 700;
+RW = 0.009*eye(n_inputs);
+
+%---
+% Calculating feedback gain for continuous and discrete cases
+%---
+
+% Performing matlab dlqr solver
+[K_d,~,CLP_d] = dlqr(sysD.A,sysD.B,Q,R);
+[K_dW,~,CLP_dW] = dlqr(sysD.A,sysD.B,QW,RW);
+
+
+
+% %% poles open loop vs closed loop
+% Open = eig(sysD.A)
+% Closed_discrete = eig(sysD.A - sysD.B*K_d)
 
 
 
@@ -279,17 +294,15 @@ Ks = K_d_Int(:,3+1:end)
 
 
 %%
-%**************************
-%  LQG control
-%  
-%**************************
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% 4. LQG control
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %{ 
 Usefull matlab functions
     destim: [Ae,Be,Ce,De] = destim(A,B,C,D,L)
     kalman: [KEST,L,P] = kalman(SYS,QN,RN,NN)
     dlqe: [M,P,Z,E] = dlqe(A,G,C,Q,R)
 %}
-
 
 % Checking whether the system is observable or not
 Ob = obsv(sysD.A,sysD.C);
@@ -301,12 +314,20 @@ var_angle = 7.57e-5;
 % measurement noise covariance R:
 R = diag([var_xyz, var_xyz, var_xyz, var_angle, var_angle, var_angle]);
 % process noise covariance Q: 
-Q = 0.1*eye(size(sysD.B,2));
-
-[M,P,Z,E] = dlqe(sysD.A,sysD.B,sysD.C,Q,R);
+Q  = [  1, zeros(1,11); ...                     % x - coordinate
+        0, 1, zeros(1,10); ...                  % y - coordinate
+        0, 0, 1, zeros(1,9); ...              % z - coordinate
+        zeros(1,3), 1, zeros(1,8); ...          % x - velocities
+        zeros(1,4), 1, zeros(1,7); ...          % y - velocities
+        zeros(1,5), 1, zeros(1,6); ...          % z - velocities         
+        zeros(1,6), 10000, zeros(1,5); ...        % phi - angles
+        zeros(1,7), 10000, zeros(1,4); ...        % theta - angles
+        zeros(1,8), 1, zeros(1,3); ...          % psi - angles
+        zeros(3,9), 1*eye(3)] ;                  % angular velocity
+Q = 0.1*Q;
+ % Calculating gain
+[M,P,Z,E] = dlqe(sysD.A,eye(n_states),sysD.C,Q,R);
 LKalman = sysD.A*M;
-
-
 
 
 
