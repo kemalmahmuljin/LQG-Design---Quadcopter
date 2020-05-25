@@ -83,7 +83,6 @@ D = zeros(6,4);
 
 
 
-
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 2. Discretization
@@ -107,14 +106,14 @@ sysD = ss(Ad, Bd, Cd, Dd, Ts);
 %% step and frequency responses for the different discretizations
 %{
 %% Step response
-T_sim = 5;
+T_sim = 2;
 t_sim_steps = [0:Ts:T_sim];
-step(G,t_sim_steps)
+step(sysD,t_sim_steps)
 legend show
 
 %% Frequency response
 figure;
-H=bodeplot(G);
+H=bodeplot(sysD);
 legend show
 grid
 
@@ -128,8 +127,8 @@ setoptions(H,pp)
 %% Step response
 T_sim = 5;
 t_sim_steps = [0:Ts:T_sim];
-step(G(4,1),G_DT_bilinear(4,1),t_sim_steps)
-legend('G41', 'G_DT_bilinear41');
+step(G(4,1),sysD(4,1),t_sim_steps)
+legend('G41', 'sysD');
 
 %% Frequency response
 figure;
@@ -173,7 +172,7 @@ Continuous_T_zero = tzero(sys)
 D_T_zero = tzero(sysD)
 fprintf(['\n\nTrapezoidal rule and seems to have solutions, however we need to check if the are actually', ...
     'transmission zeros: \n']);
-M_D = [D_T_zero(1)*eye(length(sysD.A))-sysD.A -sysD.B; sysD.C sysD.D];
+M_D = [D_T_zero(7)*eye(length(sysD.A))-sysD.A -sysD.B; sysD.C sysD.D];
 z_D = size(null(M_D))
 rank([5*eye(length(sysD.A))-sysD.A -sysD.B; sysD.C sysD.D])
 fprintf('\n\nWe can thus confirm that the Trapezoidal discretization has 4 transmission zeros.\n');
@@ -214,9 +213,9 @@ Nu_short = big_N(n_states+1:end,:);
 % Picking value for Q and R
 %---
 
-Q= [    1, zeros(1,11); ...                     % x - coordinate
-        0, 1, zeros(1,10); ...                  % y - coordinate
-        0, 0, 10, zeros(1,9); ...               % z - coordinate
+Q= [    2, zeros(1,11); ...                     % x - coordinate
+        0, 2, zeros(1,10); ...                  % y - coordinate
+        0, 0, 1000, zeros(1,9); ...                % z - coordinate
         zeros(1,3), 1, zeros(1,8); ...          % x - velocities
         zeros(1,4), 1, zeros(1,7); ...          % y - velocities
         zeros(1,5), 1, zeros(1,6); ...          % z - velocities        
@@ -224,12 +223,13 @@ Q= [    1, zeros(1,11); ...                     % x - coordinate
         zeros(1,7), 1, zeros(1,4); ...          % theta - angles
         zeros(1,8), 1, zeros(1,3); ...          % psi - angles    
         zeros(3,9), 1*eye(3)] ;                 % angular velocity
-R = 0.0001*eye(n_inputs);
+% Q = eye(n_states);
+R = 0.4*eye(n_inputs);
 
 % when adding a weight
-QW = 0.01*eye(n_states);
-QW(3,3) = 700;
-RW = 0.009*eye(n_inputs);
+QW = Q;
+QW(3,3) = 100000;
+RW = 0.4*eye(n_inputs); %0.009*eye(n_inputs)
 
 %---
 % Calculating feedback gain for continuous and discrete cases
@@ -246,50 +246,51 @@ RW = 0.009*eye(n_inputs);
 % Closed_discrete = eig(sysD.A - sysD.B*K_d)
 
 
-
-
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 3.b LQR Control: Integral Action
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 % Constructing the Augmented system
 NA = [ eye(3,3)  sysD.C(1:3,:) ;
        zeros(n_states,3)  sysD.A]
-
 NB = [ sysD.D(1:3,:) ; 
        sysD.B]
-
 %checking the controlabillity of the Augmented system
 disp('Rank of the controllability matrix of the augmented system:');
 rank(ctrb(NA,NB))
-
 %%
 % Computing Q and R for 0kg case
-Q  = [  350, zeros(1,11); ...                     % x - coordinate
-        0, 350, zeros(1,10); ...                  % y - coordinate
-        0, 0, 300, zeros(1,9); ...              % z - coordinate
-        zeros(1,3), 1, zeros(1,8); ...          % x - velocities
-        zeros(1,4), 1, zeros(1,7); ...          % y - velocities
-        zeros(1,5), 1, zeros(1,6); ...          % z - velocities         
-        zeros(1,6), 300, zeros(1,5); ...        % phi - angles
-        zeros(1,7), 300, zeros(1,4); ...        % theta - angles
-        zeros(1,8), 1, zeros(1,3); ...          % psi - angles
-        zeros(3,9), 1*eye(3)] ;                  % angular velocity
-Q = [   4*eye(3,3) zeros(3,12);
-        zeros(12,3) 1*Q] 
+% Q  = [  350, zeros(1,11); ...                     % x - coordinate
+%         0, 350, zeros(1,10); ...                  % y - coordinate
+%         0, 0, 300, zeros(1,9); ...              % z - coordinate
+%         zeros(1,3), 1, zeros(1,8); ...          % x - velocities
+%         zeros(1,4), 1, zeros(1,7); ...          % y - velocities
+%         zeros(1,5), 1, zeros(1,6); ...          % z - velocities         
+%         zeros(1,6), 300, zeros(1,5); ...        % phi - angles
+%         zeros(1,7), 300, zeros(1,4); ...        % theta - angles
+%         zeros(1,8), 1, zeros(1,3); ...          % psi - angles
+%         zeros(3,9), 1*eye(3)] ;                  % angular velocity
+% Q = [   4*eye(3,3) zeros(3,12);
+%         zeros(12,3) 1*Q] 
+Q = eye(15);
+Q(1,1) = 4;
+Q(2,2) = 4;
+Q(3,3) = 4;
+Q(4,4) = 350;
+Q(5,5) = 350;
+Q(6,6) = 300;
+% Q(7,7) = 1;
+% Q(8,8) = 1;
+% Q(9,9) = 1;
+Q(10,10) = 300;
+Q(11,11) = 300;
 R = eye(n_inputs);
-Q = 1*Q;
 R = 0.04*R;
-
 % Computing Q and R for 0.1kg case
-
-
 % Performing matlab dlqr solver
 [K_d_Int,S,CLP_d_Int] = dlqr(NA,NB,Q,R);
-
-Ki = K_d_Int(:,1:3)
-Ks = K_d_Int(:,3+1:end)
+Ki = K_d_Int(:,1:3);
+Ks = K_d_Int(:,3+1:end);
 
 
 
@@ -318,10 +319,6 @@ Q = 1*eye(n_states); % video of prof shows that it should be taken to have this 
 % Calculating gain
 [M,P,Z,E] = dlqe(sysD.A,eye(n_states),sysD.C,Q,R);
 LKalman = sysD.A*M;
-
-
-
-
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 5. State feedback with pole-placement
@@ -331,15 +328,16 @@ LKalman = sysD.A*M;
 % Determination of the desired closed-loop poles
 % The maximum admitted error is given by the size of the spheres : 0.08m
 % ! might be better to use overshoot as a criterium
-% Mp = 12*8/5;                             % Allowing 6.4% overshoot
-% xi = log(Mp)/sqrt(log(Mp)^2 + pi^2);
-xi = 0.999;
-ts = 5.8;                                 % Settling time 
-wn = 4.6/(xi*ts);                       % Natural frequency
+% OS = 150;
+% xi = -log(OS/100)/(sqrt(pi^2 + log(OS/100)));
+
+xi = 1;
+ts = 3.5;                                 % Settling time 
+wn = 4/(xi*ts);                       % Natural frequency
 alpha = -xi*wn;                         % Real part of the dominant poles
 beta = wn*sqrt(1-xi^2);                 % Imaginary part of the dominant poles
 
-non_dom = linspace(3.4*alpha,3.6*alpha, 10);
+non_dom = linspace(2.2*alpha,2.4*alpha, 10);
 C_list = [alpha + i*beta, alpha - i*beta, non_dom];
 
 % mapping poles to discrete time
@@ -349,8 +347,8 @@ Kpp = place(sysD.A,sysD.B,P_list);
 % Estimator gain L_pp
 % Becuase the system is observable we can arbitrarely place the poles of
 % the estimator !
-F1 = 1.5;
-F2 = 1.5;
+F1 = 3;
+F2 = 3;
 L_list = [F1*alpha + i*beta, F1*alpha - i*beta, F2*non_dom];
 PL_list = exp(L_list.*Ts);
 
